@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Hospitals Near Me - OpenStreetMap</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f9f9f9;
+        }
+
+        h2, h3 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        #hospital-list {
+            max-width: 600px;
+            margin: 0 auto;
+            list-style: none;
+            padding: 0;
+        }
+
+        #hospital-list li {
+            background: white;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h2>🩺 Hospitals Near Me</h2>
+    <div id="map"></div>
+    <h3>Nearby Hospitals</h3>
+    <ul id="hospital-list"></ul>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+        var map = L.map('map').setView([20.5937, 78.9629], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var userLat = position.coords.latitude;
+                var userLng = position.coords.longitude;
+
+                map.setView([userLat, userLng], 14);
+
+                L.marker([userLat, userLng]).addTo(map)
+                    .bindPopup("<b>You are here</b>")
+                    .openPopup();
+
+                var overpassUrl = "https://overpass-api.de/api/interpreter";
+                var query = `
+                [out:json];
+                node["amenity"="hospital"](around:3000, ${userLat}, ${userLng});
+                out body;
+                `;
+
+                fetch(overpassUrl, {
+                    method: "POST",
+                    body: query
+                })
+                .then(response => response.json())
+                .then(data => {
+                    var list = document.getElementById("hospital-list");
+                    list.innerHTML = "";
+
+                    data.elements.forEach(hospital => {
+                        // Add marker
+                        L.marker([hospital.lat, hospital.lon]).addTo(map)
+                            .bindPopup("<b>" + (hospital.tags.name || "Unnamed Hospital") + "</b>");
+
+                        // Add to list
+                        var li = document.createElement("li");
+                        li.textContent = hospital.tags.name || "Unnamed Hospital";
+                        list.appendChild(li);
+                    });
+
+                    if (data.elements.length === 0) {
+                        list.innerHTML = "<li>No hospitals found nearby.</li>";
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching hospitals:", err);
+                    alert("Failed to load nearby hospitals.");
+                });
+
+            }, function(error) {
+                alert("Error getting location: " + error.message);
+            });
+        } else {
+            alert("Geolocation is not supported by your browser.");
+        }
+    </script>
+</body>
+</html>
